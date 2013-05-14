@@ -1,5 +1,5 @@
 // Example usage:
-//  ./pivot --target_directory path/to/my/managed/directory glob/style/path
+//  ./pivot --target_directory path/to/my/managed/directory glob/style/path...
 package main
 
 import (
@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"github.com/rwcarlsen/goexif/tiff"
 	"io"
-	"log"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,13 +19,27 @@ import (
 )
 
 type imageMetadata struct {
-	originalFileName string
-	date             string
-	hash             string
+	date string
+	hash string
 }
 
-func (i imageMetadata) NewFileName() string {
-	return i.hash + strings.ToLower(filepath.Ext(i.originalFileName))
+func (i imageMetadata) NewFileName(oldFileName string) string {
+	return i.hash + strings.ToLower(filepath.Ext(oldFileName))
+}
+
+func newImageMetadata(filePath string, meta *imageMetadata) bool {
+	f, err := os.Open(filePath)
+	defer f.Close()
+	if os.IsNotExist(err) {
+		return false
+	} else if err != nil {
+		panic(err)
+	}
+	*meta, err = extractTiffMetadata(f)
+	if err != nil {
+		return false
+	}
+	return true
 }
 
 func main() {
@@ -35,30 +49,47 @@ func main() {
 	for _, glob := range flag.Args() {
 		files, _ := filepath.Glob(glob)
 		for _, fn := range files {
-			m, err := extractTiffMetadata(fn)
-			if err == nil {
-				path := filepath.Join(*targetDirectory, m.date)
-				output := filepath.Join(path, m.NewFileName())
-				fmt.Printf("%s -> %s\n", m.originalFileName, output)
+			var m imageMetadata
+			if !newImageMetadata(fn, &m) {
+				continue
+			}
+			path := filepath.Join(*targetDirectory, m.date)
+			output := filepath.Join(path, m.NewFileName(fn))
+			exist, err := doesFileExist(output)
+			if err != nil {
+				panic(err)
+			}
+			if !exist {
+				fmt.Printf("%s -> %s\n", fn, output)
 				if !*test {
 					os.MkdirAll(path, 0700)
 					outputFile, _ := os.Create(output)
 					f, _ := os.Open(fn)
 					io.Copy(outputFile, f)
 				}
+			} else {
+				fmt.Printf("%s already present\n", output)
 			}
 		}
 	}
 }
 
+func doesFileExist(path string) (bool, error) {
+	fn, err := os.Open(path)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	fn.Close()
+	return true, err
+}
+
 const rawTimeFormat = "2006:01:02 15:04:05"
 const pivotDateFormat = "20060102"
 
-func extractTiffMetadata(fn string) (imageMetadata, error) {
-	f, err := os.Open(fn)
-	if err != nil {
-		return imageMetadata{}, err
-	}
+func extractTiffMetadata(f *os.File) (imageMetadata, error) {
 	x, err := tiff.Decode(f)
 	if err != nil {
 		return imageMetadata{}, err
@@ -69,13 +100,17 @@ func extractTiffMetadata(fn string) (imageMetadata, error) {
 				t, err := time.Parse(rawTimeFormat, tag.StringVal())
 				if err != nil {
 					return imageMetadata{}, err
-					log.Fatal(err)
 				}
-				dir := t.Format(pivotDateFormat)
+				date := t.Format(pivotDateFormat)
 				h := crypto.SHA256.New()
-				io.WriteString(h, fn)
+				f.Seek(0, 0)
+				contents, err := ioutil.ReadAll(f)
+				if err != nil {
+					panic(err)
+				}
+				io.WriteString(h, string(contents))
 				newFileName := hex.EncodeToString(h.Sum(nil))
-				return imageMetadata{fn, dir, newFileName}, nil
+				return imageMetadata{date, newFileName}, nil
 			}
 		}
 	}
