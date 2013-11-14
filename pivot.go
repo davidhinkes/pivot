@@ -1,7 +1,7 @@
 // Example usage:
 //  ./pivot --target_directory path/to/my/managed/directory some/directory some/other/directory
 //
-// pivot will search for images in the specified directories and populates the --target_directory.  The directory is searched recursively. 
+// pivot will search for images in the specified directories and populates the --target_directory.  The directory is searched recursively.
 package main
 
 import (
@@ -26,9 +26,12 @@ func doesFileExist(path string) (bool, error) {
 	return true, nil
 }
 
+var (
+	targetDirectory = flag.String("target_directory", "", "Directory for processed files.")
+	test            = flag.Bool("test", false, "Just test")
+)
+
 func main() {
-	var targetDirectory = flag.String("target_directory", "", "Directory for processed files.")
-	var test = flag.Bool("test", false, "Just test")
 	flag.Parse()
 	topLevelFiles := []string{}
 	for _, glob := range flag.Args() {
