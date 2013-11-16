@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -31,16 +32,30 @@ var (
 	test            = flag.Bool("test", false, "Just test")
 )
 
+const targetDirectoryEnvVar = "PIVOTDIRECTORY"
+
+func getRepo() string {
+	envRepo := os.Getenv(targetDirectoryEnvVar)
+	if len(*targetDirectory) != 0 {
+		return *targetDirectory
+	} else if len(envRepo) != 0 {
+		return envRepo
+	}
+	log.Fatalf("Pivot directory must be set via the %s env var or --target_directory command line argument", targetDirectoryEnvVar)
+	return ""
+}
+
 func main() {
 	flag.Parse()
 	topLevelFiles := []string{}
 	for _, glob := range flag.Args() {
 		topLevelFiles = append(topLevelFiles, glob)
 	}
+	repo := getRepo()
 	metadata := internal.FindAllTiffFiles(topLevelFiles)
 	fmt.Printf("Found %v files.\n", len(metadata))
 	for _, m := range metadata {
-		path := filepath.Join(*targetDirectory, m.Date)
+		path := filepath.Join(repo, m.Date)
 		output := filepath.Join(path, m.NewFileName(m.FilePath))
 		exist, err := doesFileExist(output)
 		if err != nil {
