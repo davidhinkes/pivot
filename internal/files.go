@@ -51,8 +51,8 @@ type Metadata struct {
 }
 
 // Computes new pivot file name for image.
-func (i Metadata) NewFileName(oldFileName string) string {
-	return i.Hash + strings.ToLower(filepath.Ext(oldFileName))
+func (i Metadata) NewFileName() string {
+	return i.Hash + strings.ToLower(filepath.Ext(i.FilePath))
 }
 
 const rawTimeFormat = "2006:01:02 15:04:05"

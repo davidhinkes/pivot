@@ -45,6 +45,15 @@ func getRepo() string {
 	return ""
 }
 
+func doesImageExistInAnyDirectory(image internal.Metadata, repo string) bool {
+	globExpression := fmt.Sprintf("%s/*/%s", repo, image.NewFileName())
+	fileNames, err := filepath.Glob(globExpression)
+	if err != nil {
+		panic(err)
+	}
+	return len(fileNames) > 0
+}
+
 func main() {
 	flag.Parse()
 	topLevelFiles := []string{}
@@ -54,23 +63,20 @@ func main() {
 	repo := getRepo()
 	metadata := internal.FindAllTiffFiles(topLevelFiles)
 	fmt.Printf("Found %v files.\n", len(metadata))
+	importDirectory := fmt.Sprintf("%s/imports", repo)
 	for _, m := range metadata {
-		path := filepath.Join(repo, m.Date)
-		output := filepath.Join(path, m.NewFileName(m.FilePath))
-		exist, err := doesFileExist(output)
-		if err != nil {
-			panic(err)
-		}
+		exist := doesImageExistInAnyDirectory(m, repo)
 		if !exist {
+			output := filepath.Join(importDirectory, m.NewFileName())
 			fmt.Printf("%s -> %s\n", m.FilePath, output)
 			if !*test {
-				os.MkdirAll(path, 0700)
+				os.MkdirAll(filepath.Dir(output), 0700)
 				outputFile, _ := os.Create(output)
 				f, _ := os.Open(m.FilePath)
 				io.Copy(outputFile, f)
 			}
 		} else {
-			fmt.Printf("%s already present\n", output)
+			fmt.Printf("%s already present\n", m.NewFileName())
 		}
 	}
 }
