@@ -46,7 +46,7 @@ func getRepo() string {
 }
 
 func doesImageExistInAnyDirectory(image internal.Metadata, repo string) bool {
-	globExpression := fmt.Sprintf("%s/*/%s", repo, image.NewFileName())
+	globExpression := fmt.Sprintf("%s/images/*/%s", repo, image.NewFileName())
 	fileNames, err := filepath.Glob(globExpression)
 	if err != nil {
 		panic(err)
@@ -63,7 +63,7 @@ func main() {
 	repo := getRepo()
 	metadata := internal.FindAllTiffFiles(topLevelFiles)
 	fmt.Printf("Found %v files.\n", len(metadata))
-	importDirectory := fmt.Sprintf("%s/imports", repo)
+	importDirectory := fmt.Sprintf("%s/images/imports", repo)
 	for _, m := range metadata {
 		exist := doesImageExistInAnyDirectory(m, repo)
 		if !exist {
