@@ -5,13 +5,13 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
 
+	"github.com/codegangsta/cli"
 	"github.com/davidhinkes/pivot/internal"
 )
 
@@ -27,21 +27,17 @@ func doesFileExist(path string) (bool, error) {
 	return true, nil
 }
 
-var (
-	targetDirectory = flag.String("target_directory", "", "Directory for processed files.")
-	test            = flag.Bool("test", false, "Just test")
-)
-
 const targetDirectoryEnvVar = "PIVOTDIRECTORY"
 
-func getRepo() string {
+func getRepo(c *cli.Context) string {
 	envRepo := os.Getenv(targetDirectoryEnvVar)
-	if len(*targetDirectory) != 0 {
-		return *targetDirectory
+	cmdRepo := c.GlobalString("repository")
+	if len(cmdRepo) != 0 {
+		return cmdRepo
 	} else if len(envRepo) != 0 {
 		return envRepo
 	}
-	log.Fatalf("Pivot directory must be set via the %s env var or --target_directory command line argument", targetDirectoryEnvVar)
+	log.Fatalf("Pivot repo must be set via the %s env var or --repository command line argument", targetDirectoryEnvVar)
 	return ""
 }
 
@@ -55,12 +51,27 @@ func doesImageExistInAnyDirectory(image internal.Metadata, repo string) bool {
 }
 
 func main() {
-	flag.Parse()
+	app := cli.NewApp()
+	app.Name = "pivot"
+	app.Usage = "Manage your photos!"
+	app.Flags = []cli.Flag{
+		cli.StringFlag{"repository", "", "path to pivot repository"},
+		cli.BoolFlag{"test", "just test, don't do anything"},
+	}
+	app.Commands = []cli.Command{{
+		Name:        "import",
+		Usage:       "find and import photos recursively from directory",
+		Description: "import path/to/some/directory",
+		Action:      importCommand}}
+	app.Run(os.Args)
+}
+
+func importCommand(context *cli.Context) {
 	topLevelFiles := []string{}
-	for _, glob := range flag.Args() {
+	for _, glob := range context.Args() {
 		topLevelFiles = append(topLevelFiles, glob)
 	}
-	repo := getRepo()
+	repo := getRepo(context)
 	metadata := internal.FindAllTiffFiles(topLevelFiles)
 	fmt.Printf("Found %v files.\n", len(metadata))
 	importDirectory := fmt.Sprintf("%s/images/imports", repo)
@@ -69,7 +80,7 @@ func main() {
 		if !exist {
 			output := filepath.Join(importDirectory, m.NewFileName())
 			fmt.Printf("%s -> %s\n", m.FilePath, output)
-			if !*test {
+			if !context.GlobalBool("test") {
 				os.MkdirAll(filepath.Dir(output), 0700)
 				outputFile, _ := os.Create(output)
 				f, _ := os.Open(m.FilePath)

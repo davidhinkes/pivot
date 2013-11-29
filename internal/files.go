@@ -3,7 +3,7 @@ package internal
 import (
 	"crypto"
 	_ "crypto/sha256"
-	"encoding/hex"
+	"encoding/base64"
 	"errors"
 	"io"
 	"io/ioutil"
@@ -77,11 +77,9 @@ func extractTiffMetadata(filePath string) (Metadata, error) {
 				h := crypto.SHA256.New()
 				f.Seek(0, 0)
 				contents, err := ioutil.ReadAll(f)
-				if err != nil {
-					panic(err)
-				}
+				panicOnError(err)
 				io.WriteString(h, string(contents))
-				newFileName := hex.EncodeToString(h.Sum(nil))
+				newFileName := base64.URLEncoding.EncodeToString(h.Sum(nil))
 				return Metadata{filePath, date, newFileName}, nil
 			}
 		}
