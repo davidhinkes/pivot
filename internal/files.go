@@ -3,14 +3,11 @@ package internal
 import (
 	"crypto"
 	_ "crypto/sha256"
-	"encoding/base64"
-	"errors"
+	"encoding/hex"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/rwcarlsen/goexif/tiff"
 )
@@ -46,7 +43,6 @@ func panicOnError(err error) {
 // Metadata contains image metadata.
 type Metadata struct {
 	FilePath string
-	Date     string
 	Hash     string
 }
 
@@ -62,29 +58,16 @@ func extractTiffMetadata(filePath string) (Metadata, error) {
 	f, err := os.Open(filePath)
 	panicOnError(err)
 	defer f.Close()
-	x, err := tiff.Decode(f)
+	_, err = tiff.Decode(f)
 	if err != nil {
 		return Metadata{}, err
 	}
-	for _, dir := range x.Dirs {
-		for _, tag := range dir.Tags {
-			if tag.Id == 306 {
-				t, err := time.Parse(rawTimeFormat, tag.StringVal())
-				if err != nil {
-					return Metadata{}, err
-				}
-				date := t.Format(pivotDateFormat)
-				h := crypto.SHA256.New()
-				f.Seek(0, 0)
-				contents, err := ioutil.ReadAll(f)
-				panicOnError(err)
-				io.WriteString(h, string(contents))
-				newFileName := base64.URLEncoding.EncodeToString(h.Sum(nil))
-				return Metadata{filePath, date, newFileName}, nil
-			}
-		}
-	}
-	return Metadata{}, errors.New("No time data found in tiff")
+  h := crypto.SHA256.New()
+  f.Seek(0, 0)
+  _, err = io.Copy(h, f)
+	panicOnError(err)
+  newFileName := hex.EncodeToString(h.Sum(nil))
+  return Metadata{filePath, newFileName}, nil
 }
 
 func FindAllTiffFiles(topLevelDirs []string) []Metadata {
