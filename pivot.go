@@ -62,32 +62,60 @@ func main() {
 		Name:        "import",
 		Usage:       "find and import photos recursively from directory",
 		Description: "import path/to/some/directory",
-		Action:      importCommand}}
+		Action:      importCommand,
+		Flags: []cli.Flag{
+			cli.BoolFlag{"remove", "remove source files onced copied"},
+		}}}
 	app.Run(os.Args)
 }
 
+func copyFile(inputPath, outputPath string) {
+	os.MkdirAll(filepath.Dir(outputPath), 0700)
+	outputFile, err := os.Create(outputPath)
+	defer outputFile.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+	inputFile, err := os.Open(inputPath)
+	defer inputFile.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+	_, err = io.Copy(outputFile, inputFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 func importCommand(context *cli.Context) {
+	if context.GlobalBool("test") {
+		fmt.Println("Just a test, not importing anything.")
+	}
 	topLevelFiles := []string{}
 	for _, glob := range context.Args() {
 		topLevelFiles = append(topLevelFiles, glob)
 	}
 	repo := getRepo(context)
 	metadata := internal.FindAllTiffFiles(topLevelFiles)
-	fmt.Printf("Found %v files.\n", len(metadata))
+	fmt.Printf("Found %v file(s).\n", len(metadata))
 	importDirectory := fmt.Sprintf("%s/images/imports", repo)
+	imagesImported := 0
 	for _, m := range metadata {
 		exist := doesImageExistInAnyDirectory(m, repo)
 		if !exist {
-			output := filepath.Join(importDirectory, m.NewFileName())
-			fmt.Printf("%s -> %s\n", m.FilePath, output)
+			imagesImported = imagesImported + 1
 			if !context.GlobalBool("test") {
-				os.MkdirAll(filepath.Dir(output), 0700)
-				outputFile, _ := os.Create(output)
-				f, _ := os.Open(m.FilePath)
-				io.Copy(outputFile, f)
+				output := filepath.Join(importDirectory, m.NewFileName())
+				copyFile(m.FilePath, output)
+				if context.Bool("remove") {
+					os.Remove(m.FilePath)
+				}
 			}
-		} else {
-			fmt.Printf("%s already present\n", m.NewFileName())
 		}
+	}
+	if context.GlobalBool("test") {
+		fmt.Printf("Would have imported %v file(s), had this not been a test.\n", imagesImported)
+	} else {
+		fmt.Printf("Imported %v file(s).\n", imagesImported)
 	}
 }
