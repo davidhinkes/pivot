@@ -1,7 +1,3 @@
-// Example usage:
-//  ./pivot --target_directory path/to/my/managed/directory some/directory some/other/directory
-//
-// pivot will search for images in the specified directories and populates the --target_directory.  The directory is searched recursively.
 package main
 
 import (
@@ -98,7 +94,7 @@ func importCommand(context *cli.Context) {
 	repo := getRepo(context)
 	metadata := internal.FindAllTiffFiles(topLevelFiles)
 	fmt.Printf("Found %v file(s).\n", len(metadata))
-	importDirectory := fmt.Sprintf("%s/images/imports", repo)
+	importDirectory := fmt.Sprintf("%s/images/vault", repo)
 	imagesImported := 0
 	for _, m := range metadata {
 		exist := doesImageExistInAnyDirectory(m, repo)
